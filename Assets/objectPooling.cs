@@ -2,18 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Pool;
 
-
-// USED https://docs.unity.com/en-us/engine/6000.0/script-reference/unityengine/pool/objectpool1 FOR REFERENCE
-public class PooledSpawner : MonoBehaviour
+public class PooledSpawner : Spawner
 {
-    public GameObject prefab;
-    public float spawnInterval = 0.005f;
-    public float lifetime = 5f;
-
-    // cap on the total number of objects this pool will ever create.
+    [SerializeField] private GameObject prefab;
     [Min(1)] public int maxPoolSize = 50;
-
-    public bool collectionChecks = false;
 
     struct ActiveItem
     {
@@ -28,32 +20,34 @@ public class PooledSpawner : MonoBehaviour
     {
         pool = new ObjectPool<GameObject>(
             CreatePooledItem, OnTakeFromPool, OnReturnedToPool, OnDestroyPoolObject,
-            collectionChecks, 10, maxPoolSize);
+            false, 10, maxPoolSize);
     }
 
-    void Start()
+    protected override void Update()
     {
-        InvokeRepeating(nameof(Spawn), 0f, spawnInterval);
-    }
+        base.Update();
 
-    void Update()
-    {
         while (active.Count > 0 && active.Peek().releaseTime <= Time.time)
         {
             pool.Release(active.Dequeue().obj);
         }
     }
 
-    void Spawn()
+    protected override GameObject CreateItem(Vector3 position, Quaternion rotation)
     {
         if (pool.CountInactive == 0 && active.Count >= maxPoolSize)
         {
             pool.Release(active.Dequeue().obj);
         }
 
-        GameObject obj = pool.Get();
-        obj.transform.position = transform.position;
-        active.Enqueue(new ActiveItem { obj = obj, releaseTime = Time.time + lifetime });
+        GameObject item = pool.Get();
+        item.transform.SetPositionAndRotation(position, rotation);
+        return item;
+    }
+
+    protected override void ScheduleRemoval(GameObject item)
+    {
+        active.Enqueue(new ActiveItem { obj = item, releaseTime = Time.time + lifetime });
     }
 
     GameObject CreatePooledItem()
